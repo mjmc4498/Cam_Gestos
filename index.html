@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Traductor de Señas — MVP (Navegador)</title>
+  <style>
+    :root{--bg:#0f1220;--card:#1a1f36;--ink:#e6e8f0;--muted:#93a1b1;--accent:#6ae3ff;--ok:#21c55d;--warn:#f59e0b;--bad:#ef4444}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0f1220 0%,#101429 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+    .wrap{max-width:1120px;margin:0 auto;padding:20px 16px 64px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:40px;height:40px;border-radius:14px;background:radial-gradient(60% 60% at 30% 30%,var(--accent),#5b6cff 60%,#3940ff 100%);box-shadow:0 8px 30px rgba(90,102,255,.35)}
+    h1{font-size:1.25rem;margin:0}
+    .card{background:rgba(26,31,54,.9);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.06);border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
+    .video-card{position:relative;overflow:hidden}
+    video,canvas{width:100%;border-radius:14px;display:block}
+    .overlay{position:absolute;inset:0;pointer-events:none}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    button,select{
+      background:#11162b;border:1px solid rgba(255,255,255,.08);color:var(--ink);
+      padding:10px 12px;border-radius:12px;font-weight:600;cursor:pointer
+    }
+    button:hover{border-color:rgba(255,255,255,.18)}
+    button[aria-pressed="true"],.primary{background:#2a355f;border-color:#5b6cff}
+    .ok{border-color:rgba(33,197,93,.3)}
+    .warn{border-color:rgba(245,158,11,.3)}
+    .bad{border-color:rgba(239,68,68,.3)}
+    .pill{display:inline-flex;align-items:center;gap:8px;background:#10162b;border:1px solid rgba(255,255,255,.06);padding:10px 12px;border-radius:999px}
+    .status-dot{width:8px;height:8px;border-radius:50%}
+    .dot-ok{background:var(--ok)}.dot-warn{background:var(--warn)}.dot-bad{background:var(--bad)}.dot-idle{background:#64748b}
+    .panel{padding:14px}
+    .panel h3{margin:0 0 10px 0;font-size:1rem;color:#e9ecff}
+    .muted{color:var(--muted);font-size:.9rem}
+    .tokens{display:flex;flex-wrap:wrap;gap:8px;min-height:40px}
+    .chip{background:#0e1429;border:1px dashed rgba(255,255,255,.12);padding:6px 10px;border-radius:999px}
+    .sentence{font-size:1.25rem;line-height:1.4;background:#0d1326;border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,.06);min-height:54px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    textarea{width:100%;min-height:100px;border-radius:12px;background:#0e1429;color:var(--ink);border:1px solid rgba(255,255,255,.08);padding:10px}
+    .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    footer{margin-top:16px;color:#9aa5b1;font-size:.85rem}
+    .kbd{border:1px solid rgba(255,255,255,.18);background:#0c1224;border-bottom-width:3px;padding:2px 6px;border-radius:6px}
+    .small{font-size:.85rem}
+    .stat{display:grid;grid-template-columns:auto 1fr;gap:6px 10px}
+    .stat div:nth-child(odd){color:#aab3c5}
+    .hl{color:#bde2ff}
+  </style>
+  <!-- MediaPipe Hands (detección de landmarks) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand"><div class="logo"></div><h1>Traductor de Señas — MVP</h1></div>
+      <div class="pill"><span class="status-dot dot-idle" id="statusDot"></span><span id="statusText">inactivo</span></div>
+    </header>
+
+    <div class="grid">
+      <section class="video-card card panel">
+        <h3>1) Cámara</h3>
+        <div class="muted small">Permisos: activa tu cámara. El video no sale de tu navegador.</div>
+        <div style="position:relative;margin-top:8px">
+          <video id="video" playsinline class="card" muted></video>
+          <canvas id="overlay" class="overlay"></canvas>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button id="btnStart" class="primary">▶️ Iniciar cámara</button>
+          <button id="btnStop">⏹️ Detener</button>
+          <button id="btnFlip">🔁 Flip (espejo)</button>
+          <select id="selCam"></select>
+          <span class="pill small">FPS: <span id="fps">0</span></span>
+        </div>
+      </section>
+
+      <section class="card panel">
+        <h3>2) Reconocimiento</h3>
+        <div class="row">
+          <button id="btnLearn" aria-pressed="false">🎓 Modo Aprender</button>
+          <button id="btnTranslate" aria-pressed="true" class="primary">🗣️ Modo Traducir</button>
+          <button id="btnHold">⏸️ Pausa</button>
+          <span class="pill small">Confianza: <span id="conf">0</span></span>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="labelInput" placeholder="Etiqueta (p.ej., hola)" style="flex:1;min-width:120px;background:#10162b;border:1px solid rgba(255,255,255,.08);padding:10px;border-radius:10px;color:var(--ink)" />
+          <button id="btnCapture" class="ok">➕ Capturar ejemplo</button>
+          <button id="btnClearLabel" class="bad">🗑️ Borrar etiqueta</button>
+        </div>
+        <div class="muted small" style="margin-top:6px">Graba 20–50 ejemplos por etiqueta desde ángulos distintos para mejor precisión.</div>
+        <div class="row" style="margin-top:10px">
+          <button id="btnExport" class="ok">💾 Exportar modelo</button>
+          <input type="file" id="fileImport" accept="application/json" style="display:none" />
+          <button id="btnImport" class="warn">📥 Importar modelo</button>
+          <button id="btnReset" class="bad">♻️ Reset total</button>
+        </div>
+
+        <div style="margin-top:12px" class="stat mono small">
+          <div>Última etiqueta:</div><div id="lastLabel" class="hl">—</div>
+          <div>Muestras totales:</div><div id="countSamples">0</div>
+          <div>Etiquetas:</div><div id="labelsList">—</div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card panel" style="margin-top:16px">
+      <h3>3) Oración</h3>
+      <div class="tokens" id="tokens"></div>
+      <div class="toolbar" style="margin-top:8px">
+        <button id="btnSpace">␣ Espacio</button>
+        <button id="btnDelete">⌫ Borrar</button>
+        <button id="btnClear">🧹 Limpiar</button>
+        <button id="btnFinish" class="ok">✅ Terminar (.)</button>
+        <button id="btnComma">, Coma</button>
+      </div>
+      <div class="sentence mono" id="sentence" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnSaveSentence" class="ok">💾 Guardar oración</button>
+        <button id="btnExportSentences" class="ok">⬇️ Exportar oraciones</button>
+        <input type="file" id="fileImportSentences" accept="application/json" style="display:none" />
+        <button id="btnImportSentences" class="warn">⬆️ Importar oraciones</button>
+      </div>
+      <div class="muted small" style="margin-top:6px">Consejo: usa etiquetas como <b>hola</b>, <b>gracias</b>, <b>sí</b>, <b>no</b>, <b>yo</b>, <b>tú</b>, <b>comer</b>, etc. Luego combina para formar oraciones.</div>
+    </section>
+
+    <section class="card panel" style="margin-top:16px">
+      <h3>4) Registro & depuración</h3>
+      <div class="cols">
+        <div>
+          <div class="muted small">Log</div>
+          <textarea id="log" readonly></textarea>
+        </div>
+        <div>
+          <div class="muted small">Datos guardados</div>
+          <textarea id="dump" readonly></textarea>
+        </div>
+      </div>
+      <footer>
+        <div>Atajos: <span class="kbd">L</span> aprender, <span class="kbd">T</span> traducir, <span class="kbd">Espacio</span>, <span class="kbd">Backspace</span>, <span class="kbd">.</span> terminar, <span class="kbd">,</span> coma.</div>
+        <div style="margin-top:6px">Privado by design: todos los datos se guardan en <b>localStorage</b> del navegador.</div>
+      </footer>
+    </section>
+  </div>
+
+  <script>
+  // ===== Utilidades UI =====
+  const $ = (s)=>document.querySelector(s);
+  const $$ = (s)=>Array.from(document.querySelectorAll(s));
+  const log = (m)=>{ const el=$('#log'); el.value = `[${new Date().toLocaleTimeString()}] ${m}\n` + el.value; }
+  const setStatus = (txt,cls='dot-idle')=>{ $('#statusText').textContent = txt; const dot=$('#statusDot'); dot.className = `status-dot ${cls}` }
+  const dump = ()=>{ const data={samples,labels:Object.keys(samples),sentences,settings}; $('#dump').value = JSON.stringify(data,null,2); $('#countSamples').textContent = Object.values(samples).reduce((a,b)=>a+b.length,0); $('#labelsList').textContent = Object.keys(samples).join(', ')||'—'; }
+
+  // ===== Estado global =====
+  let videoStream=null, camera=null, facingMode='user', running=false, drawFlip=true;
+  let hands=null; // MediaPipe Hands
+  let lastLandmarks = null;
+  let lastFrameTime=performance.now();
+  let mode='translate'; // 'learn' | 'translate'
+  let paused=false;
+  let debounce={label:null, ts:0};
+  let tokens=[]; let sentences=[];
+  let settings={debounceMs:700, minConfidence:0.6, smoothing:0.6};
+  let samples = JSON.parse(localStorage.getItem('mpp_samples')||'{}');
+
+  // ===== Normalización de landmarks =====
+  function normalizeLandmarks(landmarks){
+    // landmarks: [{x,y,z} * 21] con coords relativas al frame [0..1]
+    if(!landmarks||!landmarks.length) return null;
+    const base = landmarks[0]; // wrist
+    const pts = landmarks.map(p=>({x:p.x-base.x, y:p.y-base.y, z:(p.z||0)-(base.z||0)}));
+    // escala por distancia muñeca→medio(9)
+    const ref = Math.hypot(pts[9].x, pts[9].y, pts[9].z)||1e-6;
+    return pts.flatMap(p=>[p.x/ref, p.y/ref, (p.z||0)/ref]);
+  }
+
+  // ===== Clasificador kNN simple =====
+  function cosineSim(a,b){ let s=0,na=0,nb=0; for(let i=0;i<a.length;i++){s+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i]} return s/(Math.sqrt(na)*Math.sqrt(nb)+1e-9) }
+  function predict(vec){
+    let best=null;
+    for(const [label,arr] of Object.entries(samples)){
+      for(const v of arr){
+        const sim = cosineSim(vec,v);
+        if(!best||sim>best.sim) best={label,sim};
+      }
+    }
+    if(best){ return {label:best.label, conf: Math.max(0, Math.min(1,(best.sim-0.6)/0.4))} } // escala heurística
+    return {label:null, conf:0}
+  }
+
+  // ===== Oraciones =====
+  function renderTokens(){ const el=$('#tokens'); el.innerHTML=''; tokens.forEach(t=>{ const b=document.createElement('div'); b.className='chip'; b.textContent=t; el.appendChild(b); }); $('#sentence').textContent = tokens.join(' '); }
+  function addToken(t){ if(!t) return; tokens.push(t); renderTokens(); }
+
+  // ===== Persistencia =====
+  function save(){ localStorage.setItem('mpp_samples', JSON.stringify(samples)); localStorage.setItem('mpp_sentences', JSON.stringify(sentences)); dump(); }
+  function load(){ samples = JSON.parse(localStorage.getItem('mpp_samples')||'{}'); sentences = JSON.parse(localStorage.getItem('mpp_sentences')||'[]'); dump(); }
+
+  // ===== Cámara + MediaPipe Hands =====
+  const videoEl = $('#video');
+  const canvasEl = $('#overlay');
+  const ctx = canvasEl.getContext('2d');
+
+  async function startCamera(){
+    try{
+      const sel = $('#selCam');
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d=>d.kind==='videoinput');
+      sel.innerHTML = cams.map((c,i)=>`<option value="${c.deviceId}">${c.label||'Cámara '+(i+1)}</option>`).join('');
+      const constraints = {video: sel.value?{deviceId:{exact:sel.value}}:{facingMode}};
+      videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+      videoEl.srcObject = videoStream; await videoEl.play();
+      canvasEl.width = videoEl.videoWidth; canvasEl.height = videoEl.videoHeight;
+      // MediaPipe Hands
+      hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+      hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+      hands.onResults(onResults);
+      const camUtils = new Camera(videoEl, { onFrame: async () => { await hands.send({ image: videoEl }); }, width: videoEl.videoWidth, height: videoEl.videoHeight });
+      camUtils.start();
+      running=true; setStatus('capturando','dot-ok'); log('Cámara iniciada');
+      loopFPS();
+    }catch(e){ log('Error cámara: '+e.message); setStatus('error','dot-bad'); }
+  }
+
+  function stopCamera(){ try{ videoStream?.getTracks()?.forEach(t=>t.stop()); running=false; setStatus('inactivo','dot-idle'); }catch{ }
+  }
+
+  function onResults(results){
+    lastLandmarks = (results.multiHandLandmarks && results.multiHandLandmarks[0]) ? results.multiHandLandmarks[0] : null;
+
+    // Dibujo
+    ctx.save(); ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    if(drawFlip){ ctx.translate(canvasEl.width,0); ctx.scale(-1,1); }
+    if(results.image) ctx.drawImage(results.image,0,0,canvasEl.width,canvasEl.height);
+
+    if(results.multiHandLandmarks && !paused){
+      results.multiHandLandmarks.forEach(landmarks=>{
+        // dibuja esqueletos
+        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color:'#6ae3ff', lineWidth:2});
+        drawLandmarks(ctx, landmarks, {color:'#ffffff', lineWidth:1});
+        const vec = normalizeLandmarks(landmarks);
+        if(vec){
+          if(mode==='learn'){
+            // sólo dibujo; la captura es manual con botón
+          } else if(mode==='translate'){
+            const {label, conf} = predict(vec);
+            $('#conf').textContent = conf.toFixed(2);
+            if(label && conf > settings.minConfidence){
+              const now = Date.now();
+              if(debounce.label!==label || (now - debounce.ts) > settings.debounceMs){
+                debounce={label,ts:now};
+                $('#lastLabel').textContent = label;
+                addToken(label);
+              }
+            }
+          }
+        }
+      });
+    }
+    ctx.restore();
+  }
+
+  function loopFPS(){ if(!running) return; const now=performance.now(); const dt=now-lastFrameTime; lastFrameTime=now; const fps=Math.round(1000/dt); $('#fps').textContent = isFinite(fps)?fps:0; requestAnimationFrame(loopFPS); }
+
+  // ===== Eventos UI =====
+  $('#btnStart').onclick = startCamera;
+  $('#btnStop').onclick = stopCamera;
+  $('#btnFlip').onclick = ()=>{ drawFlip=!drawFlip };
+  $('#selCam').onchange = ()=>{ stopCamera(); startCamera(); };
+
+  $('#btnLearn').onclick = (e)=>{ mode='learn'; e.currentTarget.setAttribute('aria-pressed','true'); $('#btnTranslate').setAttribute('aria-pressed','false'); log('Modo Aprender'); };
+  $('#btnTranslate').onclick = (e)=>{ mode='translate'; e.currentTarget.setAttribute('aria-pressed','true'); $('#btnLearn').setAttribute('aria-pressed','false'); log('Modo Traducir'); };
+  $('#btnHold').onclick = ()=>{ paused=!paused; $('#btnHold').textContent = paused?'▶️ Reanudar':'⏸️ Pausa'; };
+
+
+  $('#btnCapture').onclick = ()=>{
+    const label = $('#labelInput').value.trim().toLowerCase(); if(!label){ alert('Pon una etiqueta'); return; }
+    if(!lastLandmarks){ alert('No hay mano detectada'); return; }
+    const vec = normalizeLandmarks(lastLandmarks);
+    samples[label] = samples[label]||[]; samples[label].push(vec);
+    $('#lastLabel').textContent = label;
+    log(`Capturada muestra para "${label}" (#${samples[label].length})`);
+    save();
+  };
+
+  $('#btnClearLabel').onclick = ()=>{
+    const label = $('#labelInput').value.trim().toLowerCase(); if(!label) return;
+    if(samples[label]){ delete samples[label]; log(`Eliminada etiqueta "${label}"`); save(); }
+  };
+
+  $('#btnExport').onclick = ()=>{
+    const blob = new Blob([JSON.stringify(samples)],{type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'modelo_senas.json'; a.click();
+  };
+  $('#btnImport').onclick = ()=> $('#fileImport').click();
+  $('#fileImport').onchange = (e)=>{
+    const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ samples=JSON.parse(r.result); save(); log('Modelo importado'); }catch(err){ alert('JSON inválido'); } }; r.readAsText(f);
+  };
+  $('#btnReset').onclick = ()=>{ if(confirm('¿Borrar todo?')){ samples={}; sentences=[]; tokens=[]; save(); renderTokens(); log('Reset completo'); } };
+
+  // tokens / oraciones
+  $('#btnSpace').onclick = ()=>{ tokens.push(''); renderTokens(); };
+  $('#btnDelete').onclick = ()=>{ tokens.pop(); renderTokens(); };
+  $('#btnClear').onclick = ()=>{ tokens=[]; renderTokens(); };
+  $('#btnFinish').onclick = ()=>{ if(tokens.length){ const s = tokens.join(' ').replace(/\s+/g,' ').trim()+'.'; sentences.push({text:s, ts:Date.now()}); tokens=[]; renderTokens(); save(); log('Oración guardada: '+s); } };
+  $('#btnComma').onclick = ()=>{ tokens.push(','); renderTokens(); };
+  $('#btnSaveSentence').onclick = ()=>{ const s = $('#sentence').textContent.trim(); if(!s) return; sentences.push({text:s, ts:Date.now()}); save(); log('Oración guardada (manual)'); };
+  $('#btnExportSentences').onclick = ()=>{ const blob = new Blob([JSON.stringify(sentences)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='oraciones.json'; a.click(); };
+  $('#btnImportSentences').onclick = ()=> $('#fileImportSentences').click();
+  $('#fileImportSentences').onchange = (e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ sentences=JSON.parse(r.result); save(); log('Oraciones importadas'); }catch(err){ alert('JSON inválido'); } }; r.readAsText(f); };
+
+  // Atajos
+  document.addEventListener('keydown',(ev)=>{
+    if(ev.key===' '){ ev.preventDefault(); $('#btnSpace').click(); }
+    if(ev.key==='Backspace'){ $('#btnDelete').click(); }
+    if(ev.key==='l'||ev.key==='L'){ $('#btnLearn').click(); }
+    if(ev.key==='t'||ev.key==='T'){ $('#btnTranslate').click(); }
+    if(ev.key===','){ $('#btnComma').click(); }
+    if(ev.key==='.') { $('#btnFinish').click(); }
+  });
+
+  // Carga inicial
+  load(); renderTokens(); setStatus('inactivo','dot-idle');
+  </script>
+</body>
+</html>
