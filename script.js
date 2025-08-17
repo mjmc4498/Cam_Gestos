@@ -120,6 +120,12 @@ async function trainModel() {
 
   log('Entrenamiento completado.');
   modelTrained = true;
+
+  // Guardar el modelo y el mapa de etiquetas
+  await model.save('localstorage://sign-language-model');
+  localStorage.setItem('mpp_labelMap', JSON.stringify(labelMap));
+  log('Modelo guardado en localStorage.');
+
   updateUiState();
 
   // Limpiar tensores
@@ -168,39 +174,42 @@ function addToken(t){ if(!t) return; tokens.push(t); renderTokens(); }
 
 // ===== Persistencia =====
 function save(){ localStorage.setItem('mpp_samples', JSON.stringify(samples)); localStorage.setItem('mpp_sentences', JSON.stringify(sentences)); dump(); }
-function load() {
+async function load() {
+  // Cargar datos de la app (muestras, oraciones)
   const savedSamples = localStorage.getItem('mpp_samples');
   if (savedSamples && savedSamples !== '{}') {
     samples = JSON.parse(savedSamples);
     sentences = JSON.parse(localStorage.getItem('mpp_sentences') || '[]');
     dump();
-    log('Datos de usuario cargados desde localStorage');
-    createModel(Object.keys(samples).length);
   } else {
-    // Si no hay datos, cargar el modelo inicial
-    fetch('modelo_inicial.json')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('No se pudo cargar el modelo inicial: ' + response.statusText);
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data && data.samples && data.sentences && data.settings) {
-          samples = data.samples;
-          sentences = data.sentences;
-          settings = data.settings;
-          save();
-          log('Modelo pre-entrenado cargado');
-          createModel(Object.keys(samples).length);
-        } else {
-          log('Error: el modelo inicial no es válido');
-        }
-      })
-      .catch(err => {
-        console.error('Error al cargar el modelo inicial:', err);
-        log('Error fatal: no se pudo cargar el modelo inicial.');
-      });
+    // Si no hay datos de muestras, cargar el modelo inicial de JSON
+    try {
+      const response = await fetch('modelo_inicial.json');
+      if (!response.ok) throw new Error('Network response was not ok.');
+      const data = await response.json();
+      if (data && data.samples) {
+        samples = data.samples;
+        sentences = data.sentences || [];
+        settings = data.settings || settings;
+        save();
+        log('Modelo pre-entrenado cargado.');
+      }
+    } catch (err) {
+      console.error('Error al cargar el modelo inicial:', err);
+      log('Error fatal: no se pudo cargar el modelo inicial.');
+    }
+  }
+
+  // Intentar cargar el modelo TF.js guardado
+  try {
+    model = await tf.loadLayersModel('localstorage://sign-language-model');
+    labelMap = JSON.parse(localStorage.getItem('mpp_labelMap') || '[]');
+    modelTrained = true;
+    log('Modelo de IA cargado desde localStorage.');
+  } catch (error) {
+    log('No se encontró un modelo de IA guardado. Es necesario entrenar.');
+    modelTrained = false;
+    createModel(Object.keys(samples).length);
   }
 }
 
@@ -330,13 +339,20 @@ $('#btnCapture').onclick = ()=>{
   updateUiState();
 };
 
-$('#btnClearLabel').onclick = ()=>{
+$('#btnClearLabel').onclick = async ()=>{
   const label = $('#labelInput').value.trim().toLowerCase(); if(!label) return;
   if(samples[label]){
     delete samples[label];
     log(`Eliminada etiqueta "${label}"`);
     save();
-    modelTrained = false; // El modelo necesita re-entrenamiento
+    try {
+      await tf.models.remove('localstorage://sign-language-model');
+      localStorage.removeItem('mpp_labelMap');
+      log('Modelo de IA eliminado.');
+    } catch (error) {
+      // Ignorar si no existía
+    }
+    modelTrained = false;
     updateUiState();
   }
 };
@@ -379,7 +395,26 @@ $('#fileImportAll').onchange = (e)=>{
   };
   r.readAsText(f);
 };
-$('#btnReset').onclick = ()=>{ if(confirm('¿Borrar todo?')){ samples={}; sentences=[]; tokens=[]; modelTrained = false; save(); renderTokens(); renderSavedSentences(); log('Reset completo'); updateUiState(); } };
+$('#btnReset').onclick = async ()=>{
+  if(confirm('¿Borrar todo?')){
+    samples={};
+    sentences=[];
+    tokens=[];
+    modelTrained = false;
+    save();
+    renderTokens();
+    renderSavedSentences();
+    try {
+      await tf.models.remove('localstorage://sign-language-model');
+      localStorage.removeItem('mpp_labelMap');
+      log('Modelo de IA eliminado.');
+    } catch (error) {
+      // Ignorar si no existía
+    }
+    log('Reset completo');
+    updateUiState();
+  }
+};
 
 // tokens / oraciones
 $('#btnSpace').onclick = ()=>{ tokens.push(''); renderTokens(); };
@@ -430,11 +465,13 @@ document.addEventListener('keydown',(ev)=>{
 });
 
 // Carga inicial
-load();
-renderTokens();
-renderSavedSentences();
-setStatus('inactivo','dot-idle');
-updateUiState();
+(async () => {
+  await load();
+  renderTokens();
+  renderSavedSentences();
+  setStatus('inactivo','dot-idle');
+  updateUiState();
+})();
 
 // ===== Lógica para el cambio de tema =====
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
