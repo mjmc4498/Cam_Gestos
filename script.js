@@ -496,14 +496,32 @@ $('#btnTrain').onclick = trainModel;
 // --- Data Capture & Management ---
 $('#btnCapture').onclick = () => {
   const label = $('#labelInput').value.trim().toLowerCase();
-  if (!label) { alert('Pon una etiqueta'); return; }
-  if (!lastLandmarks) { alert('No hay mano detectada'); return; }
+  if (!label) {
+    alert('Pon una etiqueta');
+    return;
+  }
+  if (!lastLandmarks) {
+    alert('No hay mano detectada');
+    log('Intento de captura fallido: No se detectaron landmarks.');
+    return;
+  }
+
+  log(`Capturando para la etiqueta: "${label}"...`);
   const vec = normalizeLandmarks(lastLandmarks);
+  if (!vec) {
+      log('Error: No se pudieron normalizar los landmarks.');
+      return;
+  }
+
   samples[label] = samples[label] || [];
   samples[label].push(vec);
+
   $('#lastLabel').textContent = label;
-  log(`Capturada muestra para "${label}" (#${samples[label].length})`);
+  log(`Muestra capturada para "${label}". Total para esta etiqueta: ${samples[label].length}.`);
+
   save();
+  log('Llamando a save() para persistir los datos.');
+
   modelTrained = false;
   updateUiState();
 };
