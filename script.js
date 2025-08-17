@@ -386,6 +386,7 @@ async function startCamera() {
     videoStream = await navigator.mediaDevices.getUserMedia(constraints);
     videoEl.srcObject = videoStream;
     await videoEl.play();
+    videoEl.style.visibility = 'hidden';
 
     canvasEl.width = videoEl.videoWidth;
     canvasEl.height = videoEl.videoHeight;
@@ -419,6 +420,7 @@ function stopCamera() {
     videoStream?.getTracks()?.forEach(t => t.stop());
     running = false;
     setStatus('inactivo', 'dot-idle');
+    videoEl.style.visibility = 'visible';
   } catch (e) {
     console.error(e);
   }
