@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,99 +16,103 @@
 <body>
   <div class="wrap">
     <header>
-      <div class="brand"><div class="logo"></div><h1>Traductor de Señas — MVP</h1></div>
-      <div class="pill"><span class="status-dot dot-idle" id="statusDot"></span><span id="statusText">inactivo</span></div>
+      <div class="brand">
+        <div class="logo"></div>
+        <h1>Traductor de Señas</h1>
+      </div>
+      <div class="theme-switcher">
+        <button id="theme-toggle-btn" aria-label="Cambiar tema">
+            <span class="icon-light">☀️</span>
+            <span class="icon-dark">🌙</span>
+        </button>
+      </div>
     </header>
 
-    <div class="grid">
+    <main class="grid">
       <section class="video-card card panel">
-        <h3>1) Cámara</h3>
+        <h3>Cámara</h3>
         <div class="muted small">Permisos: activa tu cámara. El video no sale de tu navegador.</div>
-        <div style="position:relative;margin-top:8px">
-          <video id="video" playsinline class="card" muted></video>
+        <div style="position:relative;margin-top:var(--space-2)">
+          <video id="video" playsinline muted></video>
           <canvas id="overlay" class="overlay"></canvas>
         </div>
-        <div class="toolbar" style="margin-top:10px">
-          <button id="btnStart" class="primary">▶️ Iniciar cámara</button>
-          <button id="btnStop">⏹️ Detener</button>
-          <button id="btnFlip">🔁 Flip (espejo)</button>
-          <select id="selCam"></select>
-          <span class="pill small">FPS: <span id="fps">0</span></span>
+        <div class="toolbar">
+          <button id="btnStart" class="btn btn-primary">▶️ Iniciar cámara</button>
+          <button id="btnStop" class="btn">⏹️ Detener</button>
+          <button id="btnFlip" class="btn">🔁 Flip (espejo)</button>
+          <select id="selCam" class="btn"></select>
+          <span class="pill">FPS: <span id="fps">0</span></span>
         </div>
       </section>
 
-      <section class="card panel">
-        <h3>2) Reconocimiento</h3>
-        <div class="row">
-          <button id="btnLearn" aria-pressed="false">🎓 Modo Aprender</button>
-          <button id="btnTranslate" aria-pressed="true" class="primary">🗣️ Modo Traducir</button>
-          <button id="btnHold">⏸️ Pausa</button>
-          <span class="pill small">Confianza: <span id="conf">0</span></span>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <input id="labelInput" placeholder="Etiqueta (p.ej., hola)" style="flex:1;min-width:120px;background:#10162b;border:1px solid rgba(255,255,255,.08);padding:10px;border-radius:10px;color:var(--ink)" />
-          <button id="btnCapture" class="ok">➕ Capturar ejemplo</button>
-          <button id="btnClearLabel" class="bad">🗑️ Borrar etiqueta</button>
-        </div>
-        <div class="row" style="margin-top:10px">
-            <button id="btnTrain" class="primary">🧠 Entrenar Modelo</button>
-            <div id="modelStatus" class="pill small">Modelo: Sin entrenar</div>
-        </div>
-        <div class="muted small" style="margin-top:6px">Graba 20–50 ejemplos por etiqueta desde ángulos distintos para mejor precisión.</div>
-        <div class="row" style="margin-top:10px">
-          <button id="btnExportAll" class="ok">💾 Exportar Todo</button>
-          <input type="file" id="fileImportAll" accept="application/json" style="display:none" />
-          <button id="btnImportAll" class="warn">📥 Importar Todo</button>
-          <button id="btnReset" class="bad">♻️ Reset total</button>
-        </div>
+      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+        <section class="card panel">
+          <h3>Reconocimiento</h3>
+          <div class="row">
+            <button id="btnLearn" class="btn" aria-pressed="false">🎓 Aprender</button>
+            <button id="btnTranslate" class="btn" aria-pressed="true">🗣️ Traducir</button>
+            <button id="btnHold" class="btn">⏸️ Pausa</button>
+            <span class="pill">Confianza: <span id="conf">0</span></span>
+          </div>
+          <div class="row" style="margin-top:var(--space-2)">
+            <input id="labelInput" placeholder="Etiqueta (p.ej., hola)" style="flex:1;" />
+            <button id="btnCapture" class="btn">➕ Capturar</button>
+            <button id="btnClearLabel" class="btn">🗑️</button>
+          </div>
+          <div class="row" style="margin-top:var(--space-2)">
+            <button id="btnTrain" class="btn btn-primary" style="flex:1;">🧠 Entrenar Modelo</button>
+            <div id="modelStatus" class="pill">Modelo: Sin entrenar</div>
+          </div>
+        </section>
 
-        <div style="margin-top:12px" class="stat mono small">
-          <div>Última etiqueta:</div><div id="lastLabel" class="hl">—</div>
-          <div>Muestras totales:</div><div id="countSamples">0</div>
-          <div>Etiquetas:</div><div id="labelsList">—</div>
-        </div>
-      </section>
-    </div>
+        <section class="card panel">
+          <h3>Gestión de Datos</h3>
+          <div class="row">
+            <button id="btnExportAll" class="btn">💾 Exportar Todo</button>
+            <input type="file" id="fileImportAll" accept="application/json" style="display:none" />
+            <button id="btnImportAll" class="btn">📥 Importar Todo</button>
+            <button id="btnReset" class="btn">♻️ Reset</button>
+          </div>
+        </section>
+      </div>
+    </main>
 
-    <section class="card panel" style="margin-top:16px">
-      <h3>3) Oración</h3>
+    <section class="card panel" style="margin-top:var(--space-3)">
+      <h3>Oración</h3>
       <div class="tokens" id="tokens"></div>
-      <div class="toolbar" style="margin-top:8px">
-        <button id="btnSpace">␣ Espacio</button>
-        <button id="btnDelete">⌫ Borrar</button>
-        <button id="btnClear">🧹 Limpiar</button>
-        <button id="btnFinish" class="ok">✅ Terminar (.)</button>
-        <button id="btnComma">, Coma</button>
+      <div class="toolbar">
+        <button id="btnSpace" class="btn">␣ Espacio</button>
+        <button id="btnDelete" class="btn">⌫ Borrar</button>
+        <button id="btnClear" class="btn">🧹 Limpiar</button>
+        <button id="btnFinish" class="btn">✅ Terminar (.)</button>
+        <button id="btnComma" class="btn">, Coma</button>
+        <button id="btnSaveSentence" class="btn">💾 Guardar</button>
       </div>
-      <div class="sentence mono" id="sentence" style="margin-top:8px"></div>
-      <div class="row" style="margin-top:8px">
-        <button id="btnSaveSentence" class="ok">💾 Guardar oración</button>
-      </div>
-      <div class="muted small" style="margin-top:6px">Consejo: usa etiquetas como <b>hola</b>, <b>gracias</b>, <b>sí</b>, <b>no</b>, <b>yo</b>, <b>tú</b>, <b>comer</b>, etc. Luego combina para formar oraciones.</div>
+      <div class="sentence mono" id="sentence" style="margin-top:var(--space-2)"></div>
     </section>
 
-    <section class="card panel" style="margin-top:16px">
+    <section class="card panel" style="margin-top:var(--space-3)">
       <h3>Oraciones Guardadas</h3>
-      <div id="savedSentencesList" class="mono small" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      <div id="savedSentencesList"></div>
     </section>
 
-    <section class="card panel" style="margin-top:16px">
-      <h3>4) Registro & depuración</h3>
+    <section class="card panel" style="margin-top:var(--space-3)">
+      <h3>Registro & Depuración</h3>
       <div class="cols">
         <div>
           <div class="muted small">Log</div>
-          <textarea id="log" readonly></textarea>
+          <textarea id="log" class="mono" readonly></textarea>
         </div>
         <div>
-          <div class="muted small">Datos guardados</div>
-          <textarea id="dump" readonly></textarea>
+          <div class="muted small">Datos Guardados (JSON)</div>
+          <textarea id="dump" class="mono" readonly></textarea>
         </div>
       </div>
-      <footer>
-        <div>Atajos: <span class="kbd">L</span> aprender, <span class="kbd">T</span> traducir, <span class="kbd">Espacio</span>, <span class="kbd">Backspace</span>, <span class="kbd">.</span> terminar, <span class="kbd">,</span> coma.</div>
-        <div style="margin-top:6px">Privado by design: todos los datos se guardan en <b>localStorage</b> del navegador.</div>
-      </footer>
     </section>
+
+    <footer>
+      <p>Privado by design: todos los datos se guardan en <strong>localStorage</strong> del navegador.</p>
+    </footer>
   </div>
 
   <script src="script.js"></script>

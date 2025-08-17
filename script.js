@@ -435,3 +435,21 @@ renderTokens();
 renderSavedSentences();
 setStatus('inactivo','dot-idle');
 updateUiState();
+
+// ===== Lógica para el cambio de tema =====
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+const htmlEl = document.documentElement;
+
+const applyTheme = (theme) => {
+  htmlEl.dataset.theme = theme;
+  localStorage.setItem('theme', theme);
+};
+
+const savedTheme = localStorage.getItem('theme') || 'light';
+applyTheme(savedTheme);
+
+themeToggleBtn.addEventListener('click', () => {
+  const currentTheme = htmlEl.dataset.theme;
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+  applyTheme(newTheme);
+});
