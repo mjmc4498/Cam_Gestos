@@ -31,6 +31,24 @@ function normalizeLandmarks(landmarks){
 // ===== Modelo de IA con TensorFlow.js =====
 let model = null;
 let labelMap = [];
+let modelTrained = false;
+
+function updateUiState() {
+  const numLabels = Object.keys(samples).length;
+  const trainBtn = $('#btnTrain');
+  const translateBtn = $('#btnTranslate');
+  const modelStatusEl = $('#modelStatus');
+
+  if (numLabels < 2) {
+    trainBtn.disabled = true;
+    modelStatusEl.textContent = `Necesitas >1 etiquetas para entrenar.`;
+  } else {
+    trainBtn.disabled = false;
+    modelStatusEl.textContent = modelTrained ? 'Modelo listo para traducir.' : 'Listo para entrenar.';
+  }
+
+  translateBtn.disabled = !modelTrained;
+}
 
 function createModel(numClasses) {
   if (numClasses < 2) {
@@ -54,10 +72,13 @@ function createModel(numClasses) {
 }
 
 async function trainModel() {
+  modelTrained = false;
+  updateUiState();
+
   labelMap = Object.keys(samples);
   if (labelMap.length < 2) {
     log('Error: se necesitan al menos 2 etiquetas para entrenar.');
-    alert('Error: se necesitan al menos 2 etiquetas para entrenar.');
+    // No need for alert, UI state handles it.
     return;
   }
 
@@ -83,6 +104,7 @@ async function trainModel() {
 
   log('Iniciando entrenamiento...');
   $('#modelStatus').textContent = 'Entrenando...';
+  $('#btnTrain').disabled = true; // Disable button during training
 
   await model.fit(xs, ys, {
     epochs: 50,
@@ -97,7 +119,8 @@ async function trainModel() {
   });
 
   log('Entrenamiento completado.');
-  $('#modelStatus').textContent = 'Modelo entrenado y listo.';
+  modelTrained = true;
+  updateUiState();
 
   // Limpiar tensores
   xs.dispose();
@@ -303,11 +326,19 @@ $('#btnCapture').onclick = ()=>{
   $('#lastLabel').textContent = label;
   log(`Capturada muestra para "${label}" (#${samples[label].length})`);
   save();
+  modelTrained = false; // El modelo necesita re-entrenamiento
+  updateUiState();
 };
 
 $('#btnClearLabel').onclick = ()=>{
   const label = $('#labelInput').value.trim().toLowerCase(); if(!label) return;
-  if(samples[label]){ delete samples[label]; log(`Eliminada etiqueta "${label}"`); save(); }
+  if(samples[label]){
+    delete samples[label];
+    log(`Eliminada etiqueta "${label}"`);
+    save();
+    modelTrained = false; // El modelo necesita re-entrenamiento
+    updateUiState();
+  }
 };
 
 $('#btnExportAll').onclick = ()=>{
@@ -334,6 +365,8 @@ $('#fileImportAll').onchange = (e)=>{
         save();
         renderTokens();
         renderSavedSentences();
+        modelTrained = false; // Se necesita re-entrenar con los nuevos datos
+        updateUiState();
         log('Datos importados correctamente');
       } else {
         alert('El archivo de datos no tiene el formato esperado.');
@@ -346,7 +379,7 @@ $('#fileImportAll').onchange = (e)=>{
   };
   r.readAsText(f);
 };
-$('#btnReset').onclick = ()=>{ if(confirm('¿Borrar todo?')){ samples={}; sentences=[]; tokens=[]; save(); renderTokens(); renderSavedSentences(); log('Reset completo'); } };
+$('#btnReset').onclick = ()=>{ if(confirm('¿Borrar todo?')){ samples={}; sentences=[]; tokens=[]; modelTrained = false; save(); renderTokens(); renderSavedSentences(); log('Reset completo'); updateUiState(); } };
 
 // tokens / oraciones
 $('#btnSpace').onclick = ()=>{ tokens.push(''); renderTokens(); };
@@ -401,3 +434,4 @@ load();
 renderTokens();
 renderSavedSentences();
 setStatus('inactivo','dot-idle');
+updateUiState();
