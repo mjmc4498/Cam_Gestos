@@ -1,120 +1,142 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="light">
+<html lang="es" data-bs-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Traductor de Señas — MVP (Navegador)</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%235b6cff'/><text x='50' y='65' font-family='system-ui, sans-serif' font-size='60' font-weight='bold' fill='%23fff' text-anchor='middle'>MM</text></svg>">
-  <link rel="stylesheet" href="style.css">
-  <!-- MediaPipe Hands (detección de landmarks) -->
+  <title>Traductor de Señas — MVP (Bootstrap)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230d6efd'/><text x='50' y='65' font-family='sans-serif' font-size='60' font-weight='bold' fill='%23fff' text-anchor='middle'>MM</text></svg>">
+
+  <!-- Bootstrap 5.3 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+  <!-- MediaPipe y TF.js (se mantienen) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-  <!-- TensorFlow.js -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+  <style>
+    /* Pequeños ajustes para complementar Bootstrap */
+    .overlay { position: absolute; inset: 0; pointer-events: none; }
+    video, canvas { border-radius: var(--bs-card-border-radius); }
+    .stat-grid { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; }
+    .tokens { min-height: 48px; }
+  </style>
 </head>
-<body>
-  <div class="wrap">
-    <header>
-      <div class="brand">
-        <div class="logo"></div>
-        <h1>Traductor de Señas</h1>
+<body class="bg-body-tertiary">
+  <div class="container my-4">
+    <header class="d-flex justify-content-between align-items-center mb-4">
+      <div class="d-flex align-items-center gap-3">
+        <div class="bg-primary rounded-3" style="width: 40px; height: 40px;"></div>
+        <h1 class="h3 mb-0">Traductor de Señas</h1>
       </div>
-      <div class="theme-switcher">
-        <button id="theme-toggle-btn" aria-label="Cambiar tema">
-            <span class="icon-light">☀️</span>
-            <span class="icon-dark">🌙</span>
-        </button>
-      </div>
+      <button id="theme-toggle-btn" class="btn btn-outline-secondary">
+        <span class="icon-light">☀️</span>
+        <span class="icon-dark">🌙</span>
+      </button>
     </header>
 
-    <main class="grid">
-      <section class="video-card card panel">
-        <h3>Cámara</h3>
-        <div class="muted small">Permisos: activa tu cámara. El video no sale de tu navegador.</div>
-        <div style="position:relative;margin-top:var(--space-2)">
-          <video id="video" playsinline muted></video>
-          <canvas id="overlay" class="overlay"></canvas>
+    <main class="row g-4">
+      <div class="col-lg-7">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">Cámara</h5>
+            <p class="card-text text-body-secondary small">Permisos: activa tu cámara. El video no sale de tu navegador.</p>
+            <div class="position-relative mt-2">
+              <video id="video" class="w-100" playsinline muted></video>
+              <canvas id="overlay" class="w-100 h-100"></canvas>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button id="btnStart" class="btn btn-primary">▶️ Iniciar</button>
+              <button id="btnStop" class="btn btn-secondary">⏹️ Detener</button>
+              <button id="btnFlip" class="btn btn-secondary">🔁 Flip</button>
+              <select id="selCam" class="form-select" style="width: auto;"></select>
+              <span class="badge text-bg-light d-flex align-items-center">FPS: <span id="fps" class="ms-1">0</span></span>
+            </div>
+          </div>
         </div>
-        <div class="toolbar">
-          <button id="btnStart" class="btn btn-primary">▶️ Iniciar cámara</button>
-          <button id="btnStop" class="btn">⏹️ Detener</button>
-          <button id="btnFlip" class="btn">🔁 Flip (espejo)</button>
-          <select id="selCam" class="btn"></select>
-          <span class="pill">FPS: <span id="fps">0</span></span>
+      </div>
+
+      <div class="col-lg-5 d-flex flex-column gap-4">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Reconocimiento</h5>
+            <div class="d-flex flex-wrap gap-2">
+              <button id="btnLearn" class="btn btn-outline-primary" aria-pressed="false">🎓 Aprender</button>
+              <button id="btnTranslate" class="btn btn-primary" aria-pressed="true">🗣️ Traducir</button>
+              <button id="btnHold" class="btn btn-secondary">⏸️ Pausa</button>
+              <span class="badge text-bg-light d-flex align-items-center">Confianza: <span id="conf" class="ms-1">0</span></span>
+            </div>
+            <div class="input-group mt-3">
+              <input id="labelInput" class="form-control" placeholder="Etiqueta (p.ej., hola)" />
+              <button id="btnCapture" class="btn btn-outline-success">➕ Capturar</button>
+              <button id="btnClearLabel" class="btn btn-outline-danger">🗑️</button>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button id="btnTrain" class="btn btn-primary flex-grow-1">🧠 Entrenar Modelo</button>
+              <div id="modelStatus" class="badge text-bg-info d-flex align-items-center">Modelo: Sin entrenar</div>
+            </div>
+          </div>
         </div>
-      </section>
-
-      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-        <section class="card panel">
-          <h3>Reconocimiento</h3>
-          <div class="row">
-            <button id="btnLearn" class="btn" aria-pressed="false">🎓 Aprender</button>
-            <button id="btnTranslate" class="btn" aria-pressed="true">🗣️ Traducir</button>
-            <button id="btnHold" class="btn">⏸️ Pausa</button>
-            <span class="pill">Confianza: <span id="conf">0</span></span>
-          </div>
-          <div class="row" style="margin-top:var(--space-2)">
-            <input id="labelInput" placeholder="Etiqueta (p.ej., hola)" style="flex:1;" />
-            <button id="btnCapture" class="btn">➕ Capturar</button>
-            <button id="btnClearLabel" class="btn">🗑️</button>
-          </div>
-          <div class="row" style="margin-top:var(--space-2)">
-            <button id="btnTrain" class="btn btn-primary" style="flex:1;">🧠 Entrenar Modelo</button>
-            <div id="modelStatus" class="pill">Modelo: Sin entrenar</div>
-          </div>
-        </section>
-
-        <section class="card panel">
-          <h3>Gestión de Datos</h3>
-          <div class="row">
-            <button id="btnExportAll" class="btn">💾 Exportar Todo</button>
-            <input type="file" id="fileImportAll" accept="application/json" style="display:none" />
-            <button id="btnImportAll" class="btn">📥 Importar Todo</button>
-            <button id="btnReset" class="btn">♻️ Reset</button>
-          </div>
-        </section>
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Gestión de Datos</h5>
+                <div class="d-flex flex-wrap gap-2">
+                    <button id="btnExportAll" class="btn btn-secondary">💾 Exportar</button>
+                    <input type="file" id="fileImportAll" accept="application/json" style="display:none" />
+                    <button id="btnImportAll" class="btn btn-secondary">📥 Importar</button>
+                    <button id="btnReset" class="btn btn-danger">♻️ Reset</button>
+                </div>
+            </div>
+        </div>
       </div>
     </main>
 
-    <section class="card panel" style="margin-top:var(--space-3)">
-      <h3>Oración</h3>
-      <div class="tokens" id="tokens"></div>
-      <div class="toolbar">
-        <button id="btnSpace" class="btn">␣ Espacio</button>
-        <button id="btnDelete" class="btn">⌫ Borrar</button>
-        <button id="btnClear" class="btn">🧹 Limpiar</button>
-        <button id="btnFinish" class="btn">✅ Terminar (.)</button>
-        <button id="btnComma" class="btn">, Coma</button>
-        <button id="btnSaveSentence" class="btn">💾 Guardar</button>
-      </div>
-      <div class="sentence mono" id="sentence" style="margin-top:var(--space-2)"></div>
-    </section>
-
-    <section class="card panel" style="margin-top:var(--space-3)">
-      <h3>Oraciones Guardadas</h3>
-      <div id="savedSentencesList"></div>
-    </section>
-
-    <section class="card panel" style="margin-top:var(--space-3)">
-      <h3>Registro & Depuración</h3>
-      <div class="cols">
-        <div>
-          <div class="muted small">Log</div>
-          <textarea id="log" class="mono" readonly></textarea>
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Oración</h5>
+            <div id="tokens" class="d-flex flex-wrap gap-2 p-2 rounded bg-body-secondary"></div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button id="btnSpace" class="btn btn-secondary">␣ Espacio</button>
+                <button id="btnDelete" class="btn btn-secondary">⌫ Borrar</button>
+                <button id="btnClear" class="btn btn-secondary">🧹 Limpiar</button>
+                <button id="btnFinish" class="btn btn-success">✅ Terminar</button>
+                <button id="btnComma" class="btn btn-secondary">, Coma</button>
+                <button id="btnSaveSentence" class="btn btn-info">💾 Guardar</button>
+            </div>
+            <div class="sentence p-3 mt-3 bg-body-secondary rounded fs-5 font-monospace" id="sentence"></div>
         </div>
-        <div>
-          <div class="muted small">Datos Guardados (JSON)</div>
-          <textarea id="dump" class="mono" readonly></textarea>
-        </div>
-      </div>
-    </section>
+    </div>
 
-    <footer>
-      <p>Privado by design: todos los datos se guardan en <strong>localStorage</strong> del navegador.</p>
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Oraciones Guardadas</h5>
+            <div id="savedSentencesList" class="list-group"></div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Registro & Depuración</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="log" class="form-label small text-body-secondary">Log</label>
+                    <textarea id="log" class="form-control font-monospace" rows="5" readonly></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label for="dump" class="form-label small text-body-secondary">Datos (JSON)</label>
+                    <textarea id="dump" class="form-control font-monospace" rows="5" readonly></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center text-body-secondary mt-5 py-4 border-top">
+      <p class="mb-0">Privado by design: todos los datos se guardan en <strong>localStorage</strong> del navegador.</p>
     </footer>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script src="script.js"></script>
 </body>
 </html>

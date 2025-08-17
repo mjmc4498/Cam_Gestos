@@ -478,7 +478,7 @@ const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const htmlEl = document.documentElement;
 
 const applyTheme = (theme) => {
-  htmlEl.dataset.theme = theme;
+  htmlEl.setAttribute('data-bs-theme', theme);
   localStorage.setItem('theme', theme);
 };
 
@@ -486,7 +486,7 @@ const savedTheme = localStorage.getItem('theme') || 'light';
 applyTheme(savedTheme);
 
 themeToggleBtn.addEventListener('click', () => {
-  const currentTheme = htmlEl.dataset.theme;
+  const currentTheme = htmlEl.getAttribute('data-bs-theme');
   const newTheme = currentTheme === 'light' ? 'dark' : 'light';
   applyTheme(newTheme);
 });
