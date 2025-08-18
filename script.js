@@ -351,6 +351,7 @@ async function load() {
     } catch (err) {
       console.error('Error al cargar el modelo inicial:', err);
       log('Error fatal: no se pudo cargar el modelo inicial.');
+      $('#fetch-error-modal').style.display = 'flex';
     }
   }
 
