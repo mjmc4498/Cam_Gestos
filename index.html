@@ -36,6 +36,11 @@
     .overlay { pointer-events: none; }
     .stat-grid { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; }
     .tokens { min-height: 48px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-ok { background-color: var(--bs-success); }
+    .dot-warn { background-color: var(--bs-warning); }
+    .dot-bad { background-color: var(--bs-danger); }
+    .dot-idle { background-color: var(--bs-secondary-color); }
   </style>
 </head>
 <body class="bg-body-tertiary">
@@ -44,6 +49,10 @@
       <div class="d-flex align-items-center gap-3">
         <div class="bg-primary rounded-3" style="width: 40px; height: 40px;"></div>
         <h1 class="h3 mb-0">Traductor de Señas</h1>
+        <span class="badge text-bg-secondary d-flex align-items-center" style="height: fit-content;">
+            <span id="statusDot" class="status-dot me-2"></span>
+            <span id="statusText">inactivo</span>
+        </span>
       </div>
       <button id="theme-toggle-btn" class="btn btn-outline-secondary">
         <span class="icon-light">☀️</span>
